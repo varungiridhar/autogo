@@ -54,15 +54,18 @@ Metrics and promotion rules are fixed within a comparison. If the
 question or evaluator changes, record a new comparison and rerun the
 baseline. A useful negative result is still worth saving.
 
-## Model, compute, and knowledge access
+## Model, compute, and saved experiments
 
 Use the coding agent and job scheduler you already have. Keep experiment
 files and results independent of the model's conversation history.
 
-The template includes relevant papers, earlier runs, code, and optional
-search tools. Read the relevant sources as needed; keep links to evidence
-in reports. Parallel agents are optional and share the campaign budget.
-The default is one agent running experiments sequentially.
+Keep AutoGo's file-based approach: save scripts, logs, results, figures,
+and `report.md` in experiment folders, and read earlier experiments when
+choosing what to try next. No knowledge-base integration is configured.
+That can follow the lab's existing tools once they are known.
+
+Parallel agents are optional and share the campaign budget. The default
+is one agent running experiments sequentially.
 
 ## Legacy AutoGo files — skip these when reviewing the harness
 

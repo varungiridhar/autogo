@@ -124,8 +124,8 @@ not replace the best candidate or change the evaluator by itself.
 - **One variable at a time** when possible.
 - Keep failed ideas and the conditions under which they failed. Do not
   repeat them without a reason.
-- Search the specified references and prior experiments when they can
-  answer the current question. Link findings to original evidence.
+- Read the specified references and saved experiment files when they can
+  answer the current question. Link findings to the relevant runs and reports.
 - **Stuck?** Re-read the code, inspect raw outputs, check the baseline,
   revisit an earlier candidate, or try a different hypothesis. Step back:
   are we investigating the right bottleneck?

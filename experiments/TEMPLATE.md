@@ -71,9 +71,8 @@ limit as well.
 ## References and prior findings
 
 - Relevant code, papers, and earlier experiments: [HUMAN: Paths/links, or none.]
-- Knowledge search: [HUMAN: Existing search tools and relevant collections, or none.]
 - Known failures or constraints: [HUMAN: Things already tried or established, or none.]
 
-The agent retrieves relevant sources as needed and cites them in reports.
-Keep contradictory evidence and the conditions under which a finding
-holds. Do not copy the full knowledge base into the prompt.
+Read earlier experiment files and reports as needed. Link findings to the
+saved results, including contradictory evidence and the conditions under
+which a finding holds. No external knowledge-base setup is needed.
