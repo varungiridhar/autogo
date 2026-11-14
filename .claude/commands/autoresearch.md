@@ -1,6 +1,6 @@
 ---
 description: Run sequential experiments toward a research goal
-argument-hint: <research-goal or path to experiment README.md>
+argument-hint: <research-goal or path to experiment SPEC.md>
 ---
 
 # Autonomous research loop
@@ -19,7 +19,7 @@ and continue the loop. Do not recreate its branch or overwrite its run log.
 1. Read `AGENTS.md` and `.claude/commands/experiment.md`. Use the experiment
    workflow for every run; the folder layout and result format are shared.
 2. Read the supplied experiment specification, or copy
-   `experiments/TEMPLATE.md` to a new experiment folder. Fill in information
+   `experiments/TEMPLATE.md` to `SPEC.md` in a new experiment folder. Fill in information
    already supplied and ask the human for unresolved fields before execution.
 3. Create a branch such as `autoresearch/<MMMDD>-<goal>`. It must not already
    exist. Use a separate worktree if another experiment is in progress.
@@ -32,6 +32,7 @@ and continue the loop. Do not recreate its branch or overwrite its run log.
 
 ## Current question and hypothesis
 ## Baseline and candidate commits
+## Best validated candidate at each stage
 ## Findings and links to supporting runs
 ## Ideas to try next
 ## Active runs, job IDs, and output paths
@@ -76,13 +77,18 @@ Repeat while the stopping conditions allow:
 5. Follow `experiment.md`: prepare the change, commit the candidate code,
    run it, save evidence, and log the result. Record the exact candidate
    commit; later commits containing reports are not candidate revisions.
-6. Apply the stage's comparison rules. Mark the result `keep`, `discard`,
-   or `inconclusive`. Failed runs cannot be promoted. Do not treat a noisy
-   improvement as confirmed.
-7. Keep promising candidates for the next stage. If a candidate regresses,
-   restore only the candidate's editable code from the recorded parent
-   commit. Preserve all run records. Do not assume `HEAD~1` is the parent;
-   diagnostic and report commits may have intervened.
+6. Apply the stage's comparison rules. Mark the result `keep`, `revisit`,
+   `discard`, or `inconclusive`. Failed runs cannot be promoted. Do not
+   treat a noisy improvement as confirmed.
+7. A regression can still be promising: it may expose a useful mechanism,
+   improve stability, or plausibly help at a larger scale. Mark it `revisit`
+   with a concrete reason and a follow-up experiment. Keep its code commit
+   and run records; it can be the parent of later experiments. Keep the
+   best validated candidate separately. Follow-ups must fit the budget;
+   moving to another stage must follow the specified promotion rules.
+   If you decide to return to the parent, restore only the candidate's
+   editable code from the recorded parent commit. Do not assume `HEAD~1`
+   is the parent; diagnostic and report commits may have intervened.
 8. Update `report.md` and `state.md`, including budget use, active jobs,
    evidence, and the next action. Commit the small records.
 9. Decide whether to refine the current idea, test a different hypothesis,

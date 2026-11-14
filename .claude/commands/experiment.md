@@ -1,6 +1,6 @@
 ---
 description: Create and run one experiment, saving results and findings
-argument-hint: <experiment-description or path to experiment README.md>
+argument-hint: <experiment-description or path to experiment SPEC.md>
 ---
 
 # Experiment Runner
@@ -14,8 +14,8 @@ benchmark, or an analysis of existing results.
 ## Setup
 
 1. Read `AGENTS.md` and the experiment specification supplied by the user.
-2. If there is no specification, copy `experiments/TEMPLATE.md` into a new
-   experiment folder. Fill in information already supplied. Ask the human
+2. If there is no specification, copy `experiments/TEMPLATE.md` to `SPEC.md`
+   in a new experiment folder. Fill in information already supplied. Ask the human
    for unresolved fields before running; do not invent an evaluation or
    compute budget.
 3. Record the hypothesis and the observation that would support or reject
@@ -31,13 +31,13 @@ Keep the experiment small. Create scripts only when needed.
 
 ```
 experiments/<YYYY-MM-DD_HH-MM>-<slug>/
-    README.md             # Filled-in specification
+    SPEC.md               # Filled-in specification
     run.py                # Optional experiment script or wrapper
     analyze.py            # Optional analysis of saved results
     results.tsv           # One row per run
     report.md             # Findings and next steps
     runs/0001/
-        README.md         # Hypothesis, exact command/config, input versions
+        notes.md          # Hypothesis, exact command/config, input versions
         run.log           # Captured output, or durable link to remote logs
         result.json       # Measurements and artifact paths
 ```
@@ -49,11 +49,17 @@ live elsewhere; record durable locations and versions.
 
 ## Running one experiment
 
-1. Record the baseline/candidate code commit and the exact configuration,
-   input versions, seeds, stage, resource limits, and command in the run's
-   `README.md`. Save the applicable evaluation rules there as well.
-2. If code changed, commit only the allowed experiment files before running.
-   Use an isolated branch/worktree if needed to preserve the user's work.
+1. Prepare the candidate in its checkout. If code changed, commit only the
+   allowed files before running. Include any new scripts/configs the run
+   uses. Check `git status --short` and commit any remaining changes to
+   those files. Use an isolated branch/worktree when needed to preserve user work.
+2. Run `git rev-parse HEAD` in that checkout and save the full SHA as
+   `code_commit` in `runs/<id>/result.json`, initially with `status: running`.
+   Save the exact command, config paths/overrides, seeds, input versions,
+   stage, limits, and evaluation rules in `runs/<id>/notes.md`. Reference
+   committed configs by path at that SHA; do not duplicate them. External
+   data/checkpoints need an immutable version or hash because Git does not
+   track them. Ensure remote jobs execute the same code revision and inputs.
 3. Run the specified command. A diagnostic may only read existing artifacts.
 4. Monitor the log and resource limits. For remote work, record the job ID
    as soon as it is submitted. Enforce the timeout and cancel active work
@@ -91,8 +97,9 @@ under `metrics` and `artifacts`:
   Use a path when the parent belongs to another experiment folder.
 - `code_commit`: revision of the code actually executed. Record the harness
   revision separately in the run notes if it is in another repository.
-- `status`: `completed`, `failed`, or `cancelled`. This describes execution,
-  not whether the candidate should be kept.
+- `status`: `running`, `completed`, `failed`, or `cancelled`. Update the
+  initial record when the run ends. This describes execution, not whether
+  the candidate should be kept.
 - `metrics`: named measurements; use `null` for missing values. An
   analysis-only experiment may leave this empty and link its evidence.
 - `artifacts`: names mapped to paths or durable URLs for curves, tables,
@@ -109,8 +116,11 @@ run_id	parent_run	code_commit	stage	status	decision	result_path	description
 ```
 
 `result_path` is relative to the experiment folder. `decision` is
-`baseline`, `pending`, `keep`, `discard`, or `inconclusive`. A completed
-run can still be inconclusive. Update its decision when comparison is
+`baseline`, `pending`, `keep`, `revisit`, `discard`, or `inconclusive`.
+Use `revisit` for a candidate that does not pass the comparison but has a
+specific reason for further investigation. Record that reason and the next
+test; do not label the run an improvement. A completed run can still be
+inconclusive. Update its decision when comparison is
 finished, and explain the decision and supporting runs in `report.md`.
 Metric names and directions come from the specification, never from guesses
 about a column name. Compare only matching evaluation stages and controls.

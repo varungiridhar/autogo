@@ -1,6 +1,6 @@
 # Experiment specification
 
-Copy this file to `experiments/<YYYY-MM-DD_HH-MM>-<slug>/README.md`.
+Copy this file to `experiments/<YYYY-MM-DD_HH-MM>-<slug>/SPEC.md`.
 The human fills in each `[HUMAN: ...]` field, with help from the agent if
 useful. Write `none` or `not applicable` for unused fields. Remove unused
 evaluation stages. This file is a specification, not a configuration parser.
@@ -44,6 +44,8 @@ in `experiment.md`. Keep the existing runner if one already works.
 
 Fill in the stages you need. Fix these rules before comparing candidates.
 Stage names below are examples; a one-off experiment can use only `screen`.
+Promotion rules can allow promising regressions to receive larger tests.
+State when that is allowed and how much of the shared budget it may use.
 
 | Stage | Tasks/data, seeds, and per-run budget | Promotion or completion rule |
 |---|---|---|

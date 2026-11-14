@@ -11,17 +11,20 @@ plain Markdown; it does not depend on a particular model or agent SDK.
 Both commands use the same experiment format. A quick experiment can run
 on its own or contribute to an ongoing autoresearch campaign.
 
+This README is the human guide. `AGENTS.md` holds shared agent instructions;
+each experiment's `SPEC.md` holds the choices the human and agent agree on.
+
 ## Start here — human setup
 
 1. Read [the experiment template](experiments/TEMPLATE.md). Copy it to
-   `experiments/<YYYY-MM-DD_HH-MM>-<slug>/README.md`.
+   `experiments/<YYYY-MM-DD_HH-MM>-<slug>/SPEC.md`.
 2. Fill in every `[HUMAN: ...]` field. Write `none` or `not applicable`
    where appropriate. You can ask the agent to help draft these choices.
    Set the goal, edit scope, evaluation, and budget before execution.
 3. Point your agent at that file:
    ```text
-   /experiment experiments/<folder>/README.md
-   /autoresearch experiments/<folder>/README.md
+   /experiment experiments/<folder>/SPEC.md
+   /autoresearch experiments/<folder>/SPEC.md
    ```
 4. Read `report.md` for findings and `results.tsv` for the run history.
 
@@ -38,7 +41,7 @@ executes the command you specify using your project's environment.
 | [.claude/commands/experiment.md](.claude/commands/experiment.md) | How one experiment is prepared, run, and reported. |
 | [.claude/commands/autoresearch.md](.claude/commands/autoresearch.md) | How the agent chooses and compares successive experiments. |
 | [AGENTS.md](AGENTS.md) | Shared rules for either command. |
-| [CLAUDE.md](CLAUDE.md) | Points Claude to the shared rules. |
+| [CLAUDE.md](CLAUDE.md) | Symlink to `AGENTS.md`; the same instructions under either filename. |
 
 ## What changes between experiments?
 
