@@ -1,144 +1,123 @@
 ---
-description: Create and run a new timestamped experiment script, saving results to self-contained folder
-argument-hint: <experiment-description>
+description: Create and run one experiment, saving results and findings
+argument-hint: <experiment-description or path to experiment README.md>
 ---
 
 # Experiment Runner
 
 Create a one-off experiment based on: $ARGUMENTS
 
+Answer one question. Save the evidence, draw conclusions, and state what
+is still unknown. An experiment may be a training run, a small sweep, a
+benchmark, or an analysis of existing results.
+
+## Setup
+
+1. Read `AGENTS.md` and the experiment specification supplied by the user.
+2. If there is no specification, copy `experiments/TEMPLATE.md` into a new
+   experiment folder. Fill in information already supplied. Ask the human
+   for unresolved fields before running; do not invent an evaluation or
+   compute budget.
+3. Record the hypothesis and the observation that would support or reject
+   it. For analysis-only work, record the question and source runs instead.
+4. Use the baseline, edit scope, environment, and commands in the specification.
+
+If called by autoresearch, use the campaign specification, assigned stage,
+parent candidate, and remaining budget. Do not create a second budget.
+
 ## Folder layout
 
-Create a flat experiment dir (no subdirectories):
+Keep the experiment small. Create scripts only when needed.
 
 ```
 experiments/<YYYY-MM-DD_HH-MM>-<slug>/
-    README.md         # Goal, variables, how to run
-    launcher.sh       # Starts one iteration (or all jobs for a sweep)
-    run_games.py      # Per-iteration game collector (if iterative)
-    train.py          # Training script (if iterative)
-    analyze.py        # Reads results/NPZs and produces figures
-    report.md         # Final findings
+    README.md             # Filled-in specification
+    run.py                # Optional experiment script or wrapper
+    analyze.py            # Optional analysis of saved results
+    results.tsv           # One row per run
+    report.md             # Findings and next steps
+    runs/0001/
+        README.md         # Hypothesis, exact command/config, input versions
+        run.log           # Captured output, or durable link to remote logs
+        result.json       # Measurements and artifact paths
 ```
 
-`mkdir -p experiments/<YYYY-MM-DD_HH-MM>-<slug>` and start writing files.
+Use `TZ="America/Los_Angeles" date +"%Y-%m-%d_%H-%M"` for the prefix.
+Each execution gets a new run directory, including retries. Add only the
+artifact folders the experiment needs. Large datasets and checkpoints may
+live elsewhere; record durable locations and versions.
 
-## Two execution modes
+## Running one experiment
 
-Experiments run in one of two modes. Pick the simpler one.
+1. Record the baseline/candidate code commit and the exact configuration,
+   input versions, seeds, stage, resource limits, and command in the run's
+   `README.md`. Save the applicable evaluation rules there as well.
+2. If code changed, commit only the allowed experiment files before running.
+   Use an isolated branch/worktree if needed to preserve the user's work.
+3. Run the specified command. A diagnostic may only read existing artifacts.
+4. Monitor the log and resource limits. For remote work, record the job ID
+   as soon as it is submitted. Enforce the timeout and cancel active work
+   if the budget is exhausted; do not leave a remote job running after
+   stopping its local monitor.
+5. Save the result. A nonzero exit, missing required measurement, non-finite
+   value, or failed validity check is a failed run, not an improvement.
+   A simple fix may be retried within budget using a new run ID.
+6. Run analysis against saved artifacts. Write findings with links to the
+   measurements. Do not infer results from an unfinished job.
 
-### (a) Local — everything on this box
+For a sweep, use one run record per configuration/seed/task execution and
+summarize the comparison in `report.md`. Keep raw measurements as well as
+aggregates. Use an existing scheduler for parallel execution when specified.
 
-Fastest to iterate, no cluster config needed. The single machine runs
-collection and training back-to-back.
+## Result format
 
-- `launcher.sh` runs `uv run <exp>/run_games.py --black-checkpoint <ckpt> --white-checkpoint <ckpt> ...` for one iteration (same path on both sides = selfplay).
-- `run_iteration.sh` loops: launcher → auto-build `dataset-it{N+1}.txt` → `train.py`.
-- Data lives under `$GAME_DATA_DIR/experiments/<exp>/`.
+Save `runs/<id>/result.json`. Use this shape; add domain-specific evidence
+under `metrics` and `artifacts`:
 
-### (b) Distributed — SSH+docker cluster
-
-Use when collection throughput matters. Nodes defined in `/workspace/cluster.toml`
-with roles (`collect`, `train`). A driver fans jobs out via
-`infra.remote_exec.run_pool`; each job runs in a `docker run --rm` container
-over SSH, one job per GPU at a time. Multiple drivers can share the same cluster
-via NFS-based per-GPU leases (`share_cluster=True`).
-
-Reference: `experiments/2026-04-26_22-32-train-fromscratch/`
-- `collect_driver.py` builds a list of `Job`s and calls
-  `run_pool(workers, image, gpu=True, jobs=..., role="collect",
-  per_gpu=True, share_cluster=True)`.
-- `update_league.py` runs after each collect to recompute champion
-  iterations from the just-collected NPZs.
-- `run_iteration.sh` alternates `collect_driver.py` (distributed collect) →
-  `update_league.py` → `python -m infra.remote_exec --role train --share-cluster -- uv run train.py`
-  (distributed train).
-
-Single one-off remote command:
-
-```bash
-uv run python -m infra.remote_exec \
-    --role train \
-    --share-cluster \
-    --log-path experiments/$EXP/logs/run.log \
-    --exp-name $EXP_NAME \
-    -- uv run experiments/$EXP/script.py --arg=value
+```json
+{
+  "run_id": "0001",
+  "parent_run": null,
+  "code_commit": "<candidate commit>",
+  "stage": "screen",
+  "status": "completed",
+  "metrics": {},
+  "elapsed_seconds": 12.5,
+  "artifacts": {}
+}
 ```
 
-Job-pool dispatch (fan out many jobs):
+- `parent_run`: run this candidate came from, or `null` for the baseline.
+  Use a path when the parent belongs to another experiment folder.
+- `code_commit`: revision of the code actually executed. Record the harness
+  revision separately in the run notes if it is in another repository.
+- `status`: `completed`, `failed`, or `cancelled`. This describes execution,
+  not whether the candidate should be kept.
+- `metrics`: named measurements; use `null` for missing values. An
+  analysis-only experiment may leave this empty and link its evidence.
+- `artifacts`: names mapped to paths or durable URLs for curves, tables,
+  checkpoints, videos, or other evidence. Relative paths are relative to
+  the run directory. Record versions or hashes in the run notes.
 
-```python
-from infra.remote_exec import Job, load_cluster, run_pool
+Use the existing runner's output to create this file. Do not rewrite a
+working training loop just to change its output format.
 
-workers, image = load_cluster("collect")
-jobs = [Job(name=f"chunk-{i}", inner_cmd=f"uv run experiments/{EXP}/run_games.py ...",
-            push_files=(ckpt_path,), pull_dirs=(host_save_dir,))
-        for i in range(num_chunks)]
-results = run_pool(workers, image, gpu=True, jobs=jobs,
-                  logs_dir=EXP_DIR / "logs" / f"it{iteration}",
-                  role="collect", per_gpu=True, share_cluster=True)
+Append one row per execution to `results.tsv`:
+
+```text
+run_id	parent_run	code_commit	stage	status	decision	result_path	description
 ```
 
-`push_files` / `pull_dirs` let non-NFS workers receive the checkpoint and
-ship results back via rsync; on NFS-shared workers they're no-ops.
-
-Cluster bring-up:
-- `./infra/cluster.py ping` — verify every node in `cluster.toml` is reachable.
-- `./infra/cluster.py add [--ssh-port N] <user@host>` — prep a new worker
-  (installs docker, NVIDIA toolkit, pulls image, seeds `/nfs` if needed, appends
-  `[nodes."<ip>"]` to `cluster.toml`).
-
-## Data collection
-
-Games are generated by `alpha_go.self_play` or a thin wrapper (`run_games.py`).
-The reference `run_games.py` (in `2026-04-26_22-32-train-fromscratch/`) takes
-black/white as separate checkpoints — selfplay = same path on both sides,
-league cross-play = different paths. Key flags:
-
-- `--black-checkpoint <path>`, `--white-checkpoint <path>` — agents under test
-- `--num_games N`, `--num_workers N` — parallelism inside one process (auto-
-  detected from GPU type if not set)
-- `--save-name experiments/<exp>/<bucket>-it{N}` — writes NPZs under
-  `$GAME_DATA_DIR/<save-name>/`
-- `--seed N`, `--game_index_offset N` — so parallel chunks don't collide
-
-`GAME_DATA_DIR` defaults to `/nfs/game_data_root` and is shared across nodes via NFS
-(or symlinked locally by `cluster.py add` on non-NFS workers).
-
-## Training
-
-`train.py` prints a `===RESULT===` JSON block at the end. The reference
-script (`2026-04-26_22-32-train-fromscratch/train.py`) emits:
-`iteration`, `train_loss`, `train_policy_acc`, `train_value_acc`,
-`steps_completed`, `elapsed_seconds`, `peak_vram_mb`, `checkpoint`,
-`resumed_from`. Add `val_loss` / `val_policy_acc` / `val_value_acc` /
-`n_params` if your experiment needs them — there is no shared val helper.
-
-Datasets are manifest files (`dataset-itN.txt`) listing
-`experiments/<exp>/<bucket>-itM` paths relative to `$GAME_DATA_DIR`.
-Iteration loops auto-append new collect dirs to the next iteration's
-manifest. Special case: `dataset-it0.txt` typically points at a one-time
-bootstrap dir (e.g. `random-it0/`) that's intentionally NOT carried
-forward into `dataset-it1.txt` and beyond.
-
-## Analysis
-
-`analyze.py` reads from disk only — never from running jobs. It walks
-`$GAME_DATA_DIR/experiments/<exp>/*/**.npz` and any `logs/` output, then writes
-`progress.png` / `kl_divergence.png` / `report.md` into the experiment dir.
-
-Standard NPZ fields per game: `winner` (0=draw, 1=black, 2=white), `num_moves`,
-`result`, `black_agent`, `white_agent`, `board_size`, plus `mcts_visits` and
-`mcts_policy_priors` when MCTS data was saved.
-
-See `experiments/2026-04-26_22-32-train-fromscratch/analyze.py` for a
-reference: KL(MCTS‖policy) split by color-to-move, train accuracy,
-collect/train wall-time per iter, league champion-over-time step plot
-(reads `league_state.json`), training-board count per checkpoint.
+`result_path` is relative to the experiment folder. `decision` is
+`baseline`, `pending`, `keep`, `discard`, or `inconclusive`. A completed
+run can still be inconclusive. Update its decision when comparison is
+finished, and explain the decision and supporting runs in `report.md`.
+Metric names and directions come from the specification, never from guesses
+about a column name. Compare only matching evaluation stages and controls.
 
 ## Report
 
-Append to `report.md`:
+Write `report.md` with these sections:
 
 ```markdown
 # <slug>
@@ -147,26 +126,24 @@ Append to `report.md`:
 ## Setup
 ## Results
 ## Key findings
-- ...
+## What is still unknown
 ## Next steps
-- ...
 ```
 
-## Steps to execute
+Separate measured observations from explanations. State which conditions
+a finding applies to and whether fresh seeds or larger tasks have confirmed
+it. If later evidence changes a conclusion, mark the earlier conclusion
+as superseded and link the new evidence.
 
-1. Create the experiment folder with `README.md`, scripts, and `analyze.py`.
-2. Decide local vs distributed. If distributed, verify `./infra/cluster.py ping`.
-3. Run the experiment (`bash launcher.sh` / `bash run_iteration.sh` / direct
-   `uv run ...`).
-4. Monitor via log files in `experiments/<exp>/logs/`.
-5. `uv run experiments/<exp>/analyze.py` to generate figures.
-6. Write `report.md`.
-7. Commit the experiment folder when done.
+Commit small run records, configurations, analysis, and reports so another
+session can resume. Keep large artifacts and sensitive inputs out of Git;
+record their locations instead. Finish with a short summary for the user.
 
 ## Constraints
 
-- Don't modify `src/` without asking.
-- Don't install new packages.
-- Experiments must be self-contained and reproducible from the folder alone.
-- Analysis scripts read from disk only (no live job state).
-- Use `alpha_go.gameplay.play_game` or `alpha_go.self_play` for game generation.
+- Stay within the specification's editable files and shared budget.
+- Do not change the evaluator or comparison rules to favor a candidate.
+- Preserve raw results, including failures and discarded candidates.
+- A one-off experiment ends when its question is answered or its budget
+  is exhausted. Return the findings to the caller; do not start an
+  autoresearch campaign unless requested.
